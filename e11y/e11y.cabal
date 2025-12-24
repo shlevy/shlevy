@@ -26,6 +26,6 @@ library core
   exposed-modules: Observe.Event.Core
 
   build-depends:
-    , base ^>= { 4.20 }
+    , base
 
   default-language: GHC2024

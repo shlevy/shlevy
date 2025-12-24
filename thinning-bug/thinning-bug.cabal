@@ -1,5 +1,5 @@
 cabal-version:   3.0
-name:            capio
+name:            thinning-bug
 version:         0.1.0.0
 license:         Apache-2.0
 author:          Shea Levy
@@ -22,10 +22,23 @@ category:        Observability
 build-type:      Simple
 tested-with:     GHC == { 9.10.2 }
 
-library
-  exposed-modules: CapIO
+library signature
+  signatures: Signature
+
+  hs-source-dirs: signature
 
   build-depends:
     , base
 
   default-language: GHC2024
+
+library
+  exposed-modules: Module
+
+  signatures: Signature
+
+  default-language: GHC2024
+
+  build-depends:
+    , base
+    , thinning-bug:signature
