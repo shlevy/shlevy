@@ -27,5 +27,6 @@ library core
 
   build-depends:
     , base
+    , capio ^>= { 0.1 }
 
   default-language: GHC2024

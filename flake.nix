@@ -45,7 +45,7 @@
           }:
           let
             project = pkgs.haskell-nix.cabalProject' {
-              compiler-nix-name = "ghc912";
+              compiler-nix-name = "ghc9102";
               src = ./.;
               shell.tools = {
                 cabal = { };
