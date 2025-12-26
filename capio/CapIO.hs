@@ -3,7 +3,9 @@
 module CapIO where
 
 import Control.Exception hiding (bracket)
+#if !MIN_VERSION_base(4,21,0)
 import Data.Coerce
+#endif
 import System.IO.Unsafe
 
 type CapIO = IO
@@ -33,14 +35,17 @@ bracket :: CapIO a -> (a -> Either SomeException b -> CapIO ()) -> (a -> CapIO b
 bracket acquire release go = mask $ \unmask -> do
   a <- acquire
   b <- catchNoPropagate (unmask $ go a) $ \e@(ExceptionWithContext _ se) -> do
-    release a (Left se)
+    annotateWhileHandling se $ release a (Left se)
     rethrowIO e
   release a (Right b)
   pure b
  where
-#if !MIN_VERSION_base(4,21,0)
+#if MIN_VERSION_base(4,21,0)
+    annotateWhileHandling = annotateIO . WhileHandling
+#else
     rethrowIO = throwIO . NoBacktrace
     catchNoPropagate = catch
+    annotateWhileHandling _ x = x
 #endif
 
 bracketOnError :: CapIO a -> (a -> SomeException -> CapIO ()) -> (a -> CapIO b) -> CapIO b
