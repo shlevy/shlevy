@@ -2,7 +2,7 @@
 
 module CapIO where
 
-import Control.Exception
+import Control.Exception hiding (bracket)
 import Data.Coerce
 import System.IO.Unsafe
 
@@ -42,3 +42,9 @@ bracket acquire release go = mask $ \unmask -> do
     rethrowIO = throwIO . NoBacktrace
     catchNoPropagate = catch
 #endif
+
+bracketOnError :: CapIO a -> (a -> SomeException -> CapIO ()) -> (a -> CapIO b) -> CapIO b
+bracketOnError acquire release = bracket acquire release'
+ where
+  release' _ (Right _) = pure ()
+  release' a (Left e) = release a e
