@@ -1,8 +1,21 @@
 {-# LANGUAGE CPP #-}
 
-module CapIO (CapIO, IOCap (..), PureCap (..), purity, runCapIO, runPureIO, bracket, bracketOnError, onException) where
+module CapIO
+  ( CapIO
+  , IOCap (..)
+  , PureCap (..)
+  , purity
+  , runCapIO
+  , runPureIO
+  , bracket
+  , bracketOnError
+  , onException
+  , finally
+  )
+where
 
-import Control.Exception hiding (bracket, bracketOnError, onException)
+import Control.Exception hiding (bracket, bracketOnError, finally, onException)
+import Control.Exception qualified as CE
 #if !MIN_VERSION_base(4,21,0)
 import Data.Coerce
 #endif
@@ -59,3 +72,6 @@ onException :: CapIO a -> (SomeException -> CapIO ()) -> CapIO a
 onException go cleanup = catchNoPropagate go $ \e@(ExceptionWithContext _ se) -> do
   annotateWhileHandling se $ cleanup se
   rethrowIO e
+
+finally :: CapIO a -> CapIO () -> CapIO a
+finally = CE.finally
