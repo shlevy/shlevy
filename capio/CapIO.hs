@@ -1,8 +1,8 @@
 {-# LANGUAGE CPP #-}
 
-module CapIO where
+module CapIO (CapIO, IOCap (..), PureCap (..), purity, runCapIO, runPureIO, bracket, bracketOnError, onException) where
 
-import Control.Exception hiding (bracket)
+import Control.Exception hiding (bracket, bracketOnError, onException)
 #if !MIN_VERSION_base(4,21,0)
 import Data.Coerce
 #endif
@@ -23,12 +23,21 @@ runCapIO go = go MkIOCap
 runPureIO :: (PureCap -> CapIO a) -> a
 runPureIO go = unsafePerformIO (go MkPureCap)
 
-#if !MIN_VERSION_base(4,21,0)
+annotateWhileHandling :: SomeException -> IO a -> IO a
+#if MIN_VERSION_base(4,21,0)
+annotateWhileHandling = annotateIO . WhileHandling
+#else
+annotateWhileHandling _ x = x
+
 newtype NoBacktrace e = NoBacktrace e deriving (Show)
 instance Exception e => Exception (NoBacktrace e) where
   fromException = coerce (fromException @e)
   toException = coerce (toException @e)
   backtraceDesired _ = False
+rethrowIO :: (Exception e) => ExceptionWithContext e -> IO a
+rethrowIO = throwIO . NoBacktrace
+catchNoPropagate :: (Exception e) => IO a -> (e -> IO a) -> IO a
+catchNoPropagate = catch
 #endif
 
 bracket :: CapIO a -> (a -> Either SomeException b -> CapIO ()) -> (a -> CapIO b) -> CapIO b
@@ -39,17 +48,14 @@ bracket acquire release go = mask $ \unmask -> do
     rethrowIO e
   release a (Right b)
   pure b
- where
-#if MIN_VERSION_base(4,21,0)
-    annotateWhileHandling = annotateIO . WhileHandling
-#else
-    rethrowIO = throwIO . NoBacktrace
-    catchNoPropagate = catch
-    annotateWhileHandling _ x = x
-#endif
 
 bracketOnError :: CapIO a -> (a -> SomeException -> CapIO ()) -> (a -> CapIO b) -> CapIO b
 bracketOnError acquire release = bracket acquire release'
  where
   release' _ (Right _) = pure ()
   release' a (Left e) = release a e
+
+onException :: CapIO a -> (SomeException -> CapIO ()) -> CapIO a
+onException go cleanup = catchNoPropagate go $ \e@(ExceptionWithContext _ se) -> do
+  annotateWhileHandling se $ cleanup se
+  rethrowIO e
