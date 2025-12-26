@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module Observe.Event.Core where
+module Observe.Event where
 
 import CapIO
 import Control.Exception

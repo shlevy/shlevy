@@ -22,8 +22,8 @@ category:        Observability
 build-type:      Simple
 tested-with:     GHC == { 9.10.2 }
 
-library core
-  exposed-modules: Observe.Event.Core
+library
+  exposed-modules: Observe.Event
 
   build-depends:
     , base
