@@ -27,5 +27,8 @@ library
 
   build-depends:
     , base
+    , async
+    , stm
+    , profunctors
 
   default-language: GHC2024
