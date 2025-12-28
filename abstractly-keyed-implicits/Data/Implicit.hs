@@ -22,6 +22,7 @@
 module Data.Implicit where
 
 import GHC.Base (IP, ip, withDict)
+import GHC.TypeError
 import GHC.TypeLits (Symbol)
 
 -- | 'ImplicitParameter' @x@ @a@ is a t'Data.Kind.Constraint' that 'implicitParameter' @x@ is an implicit parameter of type @a@.
@@ -33,6 +34,8 @@ import GHC.TypeLits (Symbol)
 -- a term whose type unifies with @a@'s but not @b@'s is expected).
 --
 -- To bind an implicit parameter, use 'bindImplicit'.
+--
+-- To unbind an implicit parameter, use 'unbindImplicit'.
 --
 -- @ImplictParameter (MkIdent "foo") t@ is equivalent to @?foo :: t@.
 type ImplicitParameter (x :: k) = IP (KeyName x)
@@ -50,6 +53,18 @@ bindImplicit _ = withDict
 {-# INLINE implicitParameter #-}
 implicitParameter :: forall x -> (ImplicitParameter x a) => a
 implicitParameter x = ip @(KeyName x)
+
+-- | Unbind the implicit parameter @x@.
+--
+-- Unbinding follows the same dynamic scoping rules as 'ImplicitParameter'. @bindImplicit x a (unbindImplicit x (implicitParameter x))@
+-- is a compile-time error while @unbindImplicit x (bindImplicit x a (implicitParameter x))@ is equivalent to @a@.
+unbindImplicit :: forall x -> ((ImplicitUnbound x) => a) -> a
+unbindImplicit key = bindImplicit key undefined
+
+-- | A t'Data.Kind.Constraint' that there is no implicit parameter bound to @x@.
+--
+-- To unbind an implicit parameter, use 'unbindImplicit'.
+type ImplicitUnbound (x :: k) = ImplicitParameter x (TypeError (Text "The implicit parameter " :<>: ShowType x :<>: Text " has been explicitly unbound."))
 
 -- | The kind of type-level representations of Haskell identifiers.
 data Ident = MkIdent Symbol {- HLINT ignore "Use newtype instead of data" -}
