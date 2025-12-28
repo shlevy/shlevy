@@ -28,5 +28,7 @@ library
   build-depends:
     , base
     , capio ^>= { 0.1 }
+    , abstractly-keyed-implicits ^>= { 0.1 }
+    , profunctors
 
   default-language: GHC2024
