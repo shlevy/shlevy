@@ -29,6 +29,33 @@ library
     , base
     , capio ^>= { 0.1 }
     , abstractly-keyed-implicits ^>= { 0.1 }
-    , profunctors
+    , time
+    , constraints
+
+  default-language: GHC2024
+
+library otel
+  exposed-modules: Observe.Event.OpenTelemetry
+  visibility: public
+  build-depends:
+    , base
+    , e11y
+    , hs-opentelemetry-api
+
+  default-language: GHC2024
+
+test-suite e11y
+  type:             exitcode-stdio-1.0
+  main-is:          Test.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base
+    , capio
+    , e11y
+    , hspec
+    , hspec-hedgehog
+    , hedgehog
+    , constraints
+    , time
 
   default-language: GHC2024

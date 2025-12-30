@@ -24,6 +24,12 @@ test-show-details: streaming
 
 -- Work around https://github.com/input-output-hk/haskell.nix/issues/2141
 -- Once that's fixed we can just have a top-level @coverage: True@ setting
+package abstractly-keyed-implicits
+  coverage: True
+
+package capio
+  coverage: True
+
 package e11y
   coverage: True
 

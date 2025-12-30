@@ -23,12 +23,12 @@ build-type:      Simple
 tested-with:     GHC == { 9.10.2 }
 
 library
-  exposed-modules: CapIO
+  exposed-modules: CapIO, CapIO.Internal
 
   build-depends:
     , base
-    , async
-    , stm
-    , profunctors
+    , abstractly-keyed-implicits
+    , time
+    , primitive
 
   default-language: GHC2024

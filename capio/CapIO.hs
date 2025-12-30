@@ -1,58 +1,81 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 
+module CapIO
+  ( module CapIO.Internal
+  , SomeException (..)
+  , Cleanup (..)
+  , onException
+  , mask
+  , CanCleanup
+  , Restore (..)
+  , Allocated (..)
+  , Allocate (..)
+  , with
+  , with'
+  , CleanupIO (..) -- internals elsewhere
+  , canCleanupIO
+  , CleanupPure (..) -- internals elsewhere
+  , canCleanupPure
+  , Clock (..)
+  , SystemClock (..) -- internals elsewhere
+  , systemClock
+  , MonotonicClock (..)
+  , monotonicClock
+  , MutVarArena (..) -- internals
+  , mutVarArena
+  , MutVar (..) -- internal
+  , newMutVar
+  , readMutVar
+  , writeMutVar
+  , atomicModifyMutVar
+  , atomicModifyMutVar'
+  , modifyMutVar
+  , modifyMutVar'
+  )
+where
+
+{-
 module CapIO
   ( CapIO
   , IOCap (..)
   , PureCap (..)
   , purity
   , runCapIO
-  , runPureIO
   , onException
   , finally
   , with
   , Allocate (..)
   , Restore (..)
   , Allocated (..)
-  , ConcurrentAllocate
-  , concurrentAllocate
-  , runConcurrentAllocate
-  , Concurrently (..)
+  , Clock(..)
+  , SystemClock(..)
+  , systemClock
+  , UTCTime(..)
   )
 where
+-}
 
-import Control.Applicative
-import Control.Concurrent
-import Control.Concurrent.Async hiding (Concurrently)
-import Control.Concurrent.Async qualified as Async
-import Control.Concurrent.STM.TVar
-import Control.Exception hiding (bracket, bracketOnError, finally, onException)
+import CapIO.Internal (CapIO, CapST, IOCap, PrimCap, PureCap, liftIO, liftPrim, primIO, primPure, runCapIO, runCapST, withRunInIO, withRunInPrim)
+import Control.Exception hiding (mask, onException)
 import Control.Exception qualified as CE
 import Control.Monad
-import Control.Monad.STM
+import Control.Monad.ST
 import Data.Coerce
 import Data.Functor.Compose
-import Data.Profunctor
-import Data.Profunctor.Cayley
-import Data.Void
-import System.IO.Unsafe
+import Data.Implicit
+import Data.Primitive.MutVar qualified as Primitive
+import Data.Time.Clock (UTCTime (..))
+import Data.Time.Clock qualified as Time
 
-type CapIO = IO
+class Cleanup cleanup where
+  type CleanupState cleanup
+  onException' :: cleanup -> CapST (CleanupState cleanup) a -> (SomeException -> CapST (CleanupState cleanup) b) -> CapST (CleanupState cleanup) a
+  mask' :: cleanup -> ((forall x. CapST (CleanupState cleanup) x -> CapST (CleanupState cleanup) x) -> CapST (CleanupState cleanup) a) -> CapST (CleanupState cleanup) a
 
-data IOCap = MkIOCap
-
-data PureCap = MkPureCap
-
-purity :: IOCap -> PureCap
-purity _ = MkPureCap
-
-runCapIO :: (IOCap -> CapIO a) -> IO a
-runCapIO go = go MkIOCap
-
-runPureIO :: (PureCap -> CapIO a) -> a
-runPureIO go = unsafePerformIO (go MkPureCap)
+newtype CleanupIO = MkCleanupIO IOCap
 
 annotateWhileHandling :: SomeException -> IO a -> IO a
 #if MIN_VERSION_base(4,21,0)
@@ -71,127 +94,134 @@ catchNoPropagate :: (Exception e) => IO a -> (e -> IO a) -> IO a
 catchNoPropagate = catch
 #endif
 
-onException :: CapIO a -> (SomeException -> CapIO ()) -> CapIO a
-onException go cleanup = catchNoPropagate go $ \e@(ExceptionWithContext _ se) -> do
-  annotateWhileHandling se $ cleanup se
-  rethrowIO e
+instance Cleanup CleanupIO where
+  type CleanupState CleanupIO = RealWorld
+  onException' (MkCleanupIO io) body handler = withRunInIO io $ \runCIO ->
+    catchNoPropagate (runCIO body) $ \e@(ExceptionWithContext _ se) -> do
+      _ <- annotateWhileHandling se . runCIO $ handler se
+      -- Maybe: Annotate with the return?
+      rethrowIO e
+  mask' (MkCleanupIO io) body = withRunInIO io $ \runCIO ->
+    CE.mask (\restore -> runCIO (body (\x -> liftIO io (restore (runCIO x)))))
 
-finally :: CapIO a -> CapIO () -> CapIO a
-finally = CE.finally
+canCleanupIO :: IOCap -> ((CanCleanup CleanupIO) => CapIO a) -> CapIO a
+canCleanupIO io go = bindImplicit Cleanup (MkCleanupIO io) go
 
-with :: Allocate a res -> (res -> CapIO a) -> CapIO a
-with alloc body = mask $ \restore' -> do
-  let restore = Restore restore'
-  MkAllocated{..} <- coerce alloc restore
-  x <- restore' (body resource) `onException` (release restore . Left)
-  release restore $ Right x
-  pure x
+newtype CleanupPure s = MkCleanupPure (PureCap s)
 
-newtype Restore = Restore (forall x. CapIO x -> CapIO x)
+instance Cleanup (CleanupPure s) where
+  type CleanupState (CleanupPure s) = s
+  onException' _ body _ = body
+  mask' _ body = body id
 
-newtype Allocate b a = MkAllocate (Restore -> CapIO (Allocated b a))
-  deriving (Functor) via (Compose ((->) Restore) (Compose CapIO (Allocated b)))
-  deriving (Profunctor) via (Cayley (Compose ((->) Restore) CapIO) Allocated)
+canCleanupPure :: PureCap s -> ((CanCleanup (CleanupPure s)) => CapST s a) -> CapST s a
+canCleanupPure pc go = bindImplicit Cleanup (MkCleanupPure pc) go
 
-instance Applicative (Allocate b) where
-  pure :: forall a. a -> Allocate b a
-  pure = coerce (pure @(Compose ((->) Restore) (Compose CapIO (Allocated b))) @a)
-  (<*>) = ap
+type CanCleanup cleanup = (ImplicitParameter Cleanup cleanup, Cleanup cleanup)
 
-instance Monad (Allocate b) where
-  return = pure
-  allocX >>= (f :: a -> Allocate b c) = coerce @(Restore -> CapIO (Allocated b c)) $ \restore -> do
-    allocatedX@(MkAllocated (x :: a) releaseX) <- coerce allocX restore
-    allocatedY <- coerce f x restore `onException` (releaseX restore . Left)
-    pure $ allocatedX *> allocatedY
+onException :: (CanCleanup cleanup) => CapST (CleanupState cleanup) a -> (SomeException -> CapST (CleanupState cleanup) b) -> CapST (CleanupState cleanup) a
+onException = onException' (implicitParameter Cleanup)
 
-data Allocated b a = MkAllocated
-  { resource :: a
-  , release :: Restore -> Either SomeException b -> CapIO ()
+mask :: (CanCleanup cleanup) => ((forall x. CapST (CleanupState cleanup) x -> CapST (CleanupState cleanup) x) -> CapST (CleanupState cleanup) a) -> CapST (CleanupState cleanup) a
+mask = mask' (implicitParameter Cleanup)
+
+data Restore cleanup = (ImplicitParameter Cleanup cleanup) => MkRestore (forall x. CapST (CleanupState cleanup) x -> CapST (CleanupState cleanup) x)
+
+data Allocated cleanup releaseYield releaseArg resource = MkAllocated
+  { resource :: resource
+  , release :: Restore cleanup -> Either SomeException releaseArg -> CapST (CleanupState cleanup) releaseYield
   }
   deriving stock (Functor)
 
-instance Profunctor Allocated where
-  dimap f g MkAllocated{..} =
-    MkAllocated
-      { resource = g resource
-      , release = \restore -> release restore . fmap f
-      }
-
-instance Applicative (Allocated b) where
-  pure x = MkAllocated x (\_ _ -> pure ())
+instance (Monoid releaseYield, Cleanup cleanup) => Applicative (Allocated cleanup releaseYield releaseArg) where
+  pure x = MkAllocated x (\_ _ -> pure mempty)
   (<*>) = ap
 
-instance Monad (Allocated b) where
+instance (Monoid releaseYield, Cleanup cleanup) => Monad (Allocated cleanup releaseYield releaseArg) where
   return = pure
   (MkAllocated{..}) >>= f =
     MkAllocated
       { resource = fResource
-      , release = \restore b -> fRelease restore b `finally` release restore b
+      , release = \restore@(MkRestore _) b ->
+          (<>)
+            <$> fRelease restore b `onException` (\_ -> release restore b)
+            <*> release restore b
       }
    where
     MkAllocated{resource = fResource, release = fRelease} = f resource
 
-newtype ConcurrentAllocate b a = MkConcurrentAllocate (Allocate Void (STM (Either SomeException (Allocated b a)))) deriving (Functor) via Compose (Allocate Void) (Compose STM (Compose (Either SomeException) (Allocated b)))
+newtype Allocate cleanup releaseYield releaseArg resource = MkAllocate (Restore cleanup -> CapST (CleanupState cleanup) (Allocated cleanup releaseYield releaseArg resource))
+  deriving (Functor) via (Compose ((->) (Restore cleanup)) (Compose (CapST (CleanupState cleanup)) (Allocated cleanup releaseYield releaseArg)))
 
-concurrentAllocate :: forall b a. Allocate b a -> ConcurrentAllocate b a
-concurrentAllocate alloc = coerce @(Restore -> CapIO (Allocated Void (STM (Either SomeException (Allocated b a))))) $ \_ -> do
-  needsRelease <- newTVarIO Nothing
-  allocationDone <- newTVarIO False
-  allocAsync <- asyncWithUnmask $ \restore -> do
-    allocated <- coerce alloc (Restore restore)
+instance (Monoid releaseYield, Cleanup cleanup) => Applicative (Allocate cleanup releaseYield releaseArg) where
+  pure :: forall a. a -> Allocate cleanup releaseYield releaseArg a
+  pure = coerce (pure @(Compose ((->) (Restore cleanup)) (Compose (CapST (CleanupState cleanup)) (Allocated cleanup releaseYield releaseArg))) @a)
+  (<*>) = ap
 
-    nr <- atomically $ do
-      writeTVar allocationDone True
-      readTVar needsRelease
-    case nr of
-      Nothing -> pure ()
-      Just b -> do
-        release allocated (Restore restore) (absurd <$> b)
-        allowInterrupt
+instance (Monoid releaseYield, Cleanup cleanup) => Monad (Allocate cleanup releaseYield releaseArg) where
+  return = pure
+  allocX >>= (f :: a -> Allocate cleanup releaseYield releaseArg b) = coerce @(Restore cleanup -> CapST (CleanupState cleanup) (Allocated cleanup releaseYield releaseArg b)) $ \restore@(MkRestore _) -> do
+    allocatedX@(MkAllocated (x :: a) releaseX) <- coerce allocX restore
+    allocatedY <- coerce f x restore `onException` (releaseX restore . Left)
+    pure $ allocatedX *> allocatedY
 
-    pure allocated
+with' :: (CanCleanup cleanup) => Allocate cleanup b a resource -> (resource -> CapST (CleanupState cleanup) a) -> CapST (CleanupState cleanup) (a, b)
+with' alloc body = mask $ \restore' -> do
+  let restore = MkRestore restore'
+  MkAllocated{..} <- coerce alloc restore
+  x <- restore' (body resource) `onException` (release restore . Left)
+  ry <- release restore $ Right x
+  pure (x, ry)
 
-  pure $
-    MkAllocated
-      { resource = waitCatchSTM allocAsync
-      , release = \restore b -> do
-          ad <- atomically $ do
-            writeTVar needsRelease (Just b)
-            readTVar allocationDone
-          case ad of
-            True ->
-              uninterruptibleMask_ (waitCatch allocAsync) >>= \case
-                Left _ -> pure ()
-                Right allocated -> release allocated restore (absurd <$> b)
-            False -> void $ forkIO $ cancel allocAsync
-      }
+with :: (CanCleanup cleanup) => Allocate cleanup b a resource -> (resource -> CapST (CleanupState cleanup) a) -> CapST (CleanupState cleanup) a
+with alloc = fmap fst . with' alloc
 
-instance Applicative (ConcurrentAllocate b) where
-  pure :: forall a. a -> ConcurrentAllocate b a
-  pure = coerce (pure @(Compose (Allocate Void) (Compose STM (Compose (Either SomeException) (Allocated b)))) @a)
-  liftA2 (f :: a -> b' -> c) ca1 ca2 = coerce @(Allocate Void (STM (Either SomeException (Allocated b c)))) $ do
-    s1 <- coerce ca1
-    s2 <- coerce ca2
-    pure $
-      (fmap Left <$> s1) <|> (fmap Right <$> s2) >>= \case
-        Left e -> pure $ Left e
-        Right (Left x) -> fmap (liftA2 f x) <$> s2
-        Right (Right y) -> do
-          x <- s1
-          pure $ liftA2 (liftA2 f) x (pure y)
+class Clock clock where
+  type ClockState clock
+  getCurrentTime :: clock -> CapST (ClockState clock) UTCTime
 
-runConcurrentAllocate :: forall b a. ConcurrentAllocate b a -> Allocate b a
-runConcurrentAllocate ca = coerce @(Restore -> CapIO (Allocated b a)) $ \restore -> do
-  MkAllocated{..} <- coerce ca restore
-  atomically resource `onException` (release restore . Left @_ @Void) >>= \case
-    Left e -> do
-      annotateWhileHandling e $ release restore (Left e)
-      throwIO e
-    Right alloced -> pure alloced
+newtype SystemClock = MkSystemClock IOCap
 
-newtype Concurrently a = Concurrently {runConcurrently :: CapIO a}
-  deriving (Functor) via Async.Concurrently
-  deriving (Applicative) via Async.Concurrently
-  deriving (Semigroup) via (Async.Concurrently a)
-  deriving (Monoid) via (Async.Concurrently a)
+instance Clock SystemClock where
+  type ClockState SystemClock = RealWorld
+  getCurrentTime (MkSystemClock io) = liftIO io Time.getCurrentTime
+
+systemClock :: IOCap -> SystemClock
+systemClock = MkSystemClock
+
+newtype MonotonicClock s = MkMonotonicClock (MutVar s UTCTime)
+
+instance Clock (MonotonicClock s) where
+  type ClockState (MonotonicClock s) = s
+  getCurrentTime (MkMonotonicClock clk) = atomicModifyMutVar clk (\now -> (Time.addUTCTime 1 now, now))
+
+monotonicClock :: MutVarArena s -> UTCTime -> CapST s (MonotonicClock s)
+monotonicClock arena = coerce (newMutVar @_ @UTCTime arena)
+
+newtype MutVarArena s = MkMutVarArena (PrimCap s)
+
+mutVarArena :: PrimCap s -> MutVarArena s
+mutVarArena = MkMutVarArena
+
+data MutVar s a = MkMutVar (PrimCap s) (Primitive.MutVar s a)
+
+newMutVar :: MutVarArena s -> a -> CapST s (MutVar s a)
+newMutVar (MkMutVarArena pc) a = MkMutVar pc <$> liftPrim pc (Primitive.newMutVar a)
+
+readMutVar :: MutVar s a -> CapST s a
+readMutVar (MkMutVar pc mv) = liftPrim pc (Primitive.readMutVar mv)
+
+writeMutVar :: MutVar s a -> a -> CapST s ()
+writeMutVar (MkMutVar pc mv) a = liftPrim pc (Primitive.writeMutVar mv a)
+
+atomicModifyMutVar :: MutVar s a -> (a -> (a, b)) -> CapST s b
+atomicModifyMutVar (MkMutVar pc mv) f = liftPrim pc (Primitive.atomicModifyMutVar mv f)
+
+atomicModifyMutVar' :: MutVar s a -> (a -> (a, b)) -> CapST s b
+atomicModifyMutVar' (MkMutVar pc mv) f = liftPrim pc (Primitive.atomicModifyMutVar' mv f)
+
+modifyMutVar :: MutVar s a -> (a -> a) -> CapST s ()
+modifyMutVar (MkMutVar pc mv) f = liftPrim pc (Primitive.modifyMutVar mv f)
+
+modifyMutVar' :: MutVar s a -> (a -> a) -> CapST s ()
+modifyMutVar' (MkMutVar pc mv) f = liftPrim pc (Primitive.modifyMutVar' mv f)
