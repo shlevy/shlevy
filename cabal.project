@@ -27,5 +27,9 @@ test-show-details: streaming
 package e11y
   coverage: True
 
+-- Breaks with backack TODO bug report
+package capio
+  coverage: False
+
 program-options
   ghc-options: -Wall -Wunused-packages -Wcompat

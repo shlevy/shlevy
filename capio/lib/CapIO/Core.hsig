@@ -1,0 +1,20 @@
+{-# LANGUAGE TypeFamilyDependencies #-}
+
+signature CapIO.Core where
+
+import Control.Monad.Fix
+import Control.Monad.ST
+import Data.Kind
+
+type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where ..
+
+type role RootCap nominal
+
+data RootCap (s :: Type) :: Type
+
+forgeRootIO :: IO (RootCap RealWorld)
+
+class (MonadFix (CapIO s)) => ValidState s where
+  forgeRootST :: ST s (RootCap s)
+
+instance ValidState RealWorld

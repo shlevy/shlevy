@@ -4,31 +4,40 @@ version:         0.1.0.0
 license:         Apache-2.0
 author:          Shea Levy
 maintainer:      shea@shealevy.com
-copyright:
-  Copyright 2025 Shea Levy
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-category:        Observability
+copyright:       Copyright 2025 Shea Levy
 build-type:      Simple
 tested-with:     GHC == { 9.10.2 }
 
-library
-  exposed-modules: CapIO
-
-  build-depends:
-    , base
-    , async
-    , stm
-    , profunctors
-
+common base
+  build-depends: base
   default-language: GHC2024
+
+library
+  import: base
+  hs-source-dirs: lib
+  exposed-modules: CapIO
+  signatures: CapIO.Core
+
+library io
+  import: base
+  hs-source-dirs: io
+  exposed-modules: CapIO.Core
+  visibility: public
+
+library typesafe
+  import: base
+  hs-source-dirs: typesafe
+  exposed-modules: CapIO.Core
+  visibility: public
+
+library capio-io
+  import: base
+  reexported-modules: CapIO, CapIO.Core
+  build-depends: capio, capio:io
+  visibility: public
+
+library capio-typesafe
+  import: base
+  reexported-modules: CapIO, CapIO.Core
+  build-depends: capio, capio:typesafe
+  visibility: public
