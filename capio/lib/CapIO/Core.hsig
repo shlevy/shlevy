@@ -13,17 +13,20 @@ import Data.Kind
 type CapIO :: Type -> (Type -> Type)
 type family CapIO s = m | m -> s where ..
 
-type role RootCap nominal
+type role CapabilityData nominal nominal
 
-data RootCap (s :: Type) :: Type
-
-forgeRootIO :: IO (RootCap RealWorld)
+type CapabilityData :: Type -> Capability -> Type
+data CapabilityData s cap
 
 type HasCapability :: Type -> Capability -> Constraint
 type family HasCapability s cap where ..
 
+withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
+
+capabilityData :: (HasCapability s cap) => CapabilityData s cap
+
 class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (RootCap s)
+  forgeRootST :: ST s (CapabilityData s Root)
   sudo
     :: forall s'
     -> (m ~ CapIO s, s ~ s')
@@ -35,3 +38,5 @@ class (MonadFix (CapIO s)) => ValidState s where
     -> (HasCapability s Root) => x
 
 instance ValidState RealWorld
+
+forgeRootIO :: IO (CapabilityData RealWorld Root)

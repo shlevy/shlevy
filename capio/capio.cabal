@@ -1,4 +1,4 @@
-cabal-version:   3.0
+cabal-version:   3.4
 name:            capio
 version:         0.1.0.0
 license:         Apache-2.0
@@ -16,6 +16,7 @@ library prelim
   import: base
   hs-source-dirs: prelim
   exposed-modules: CapIO.Prelim
+  build-depends: singletons
 
 library
   import: base
@@ -29,7 +30,7 @@ library io
   import: base
   hs-source-dirs: io
   exposed-modules: CapIO.Core
-  build-depends: capio:prelim
+  build-depends: capio:prelim, singletons
   visibility: public
 
 library typesafe
@@ -40,13 +41,11 @@ library typesafe
   visibility: public
 
 library capio-io
-  import: base
   reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
   build-depends: capio, capio:io
   visibility: public
 
 library capio-typesafe
-  import: base
   reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
   build-depends: capio, capio:typesafe
   visibility: public

@@ -4,9 +4,11 @@
 
 module CapIO.Core
   ( CapIO
-  , RootCap
+  , CapabilityData
   , forgeRootIO
   , HasCapability
+  , withCapability
+  , capabilityData
   , ValidState (..)
   )
 where
@@ -16,25 +18,36 @@ import Control.Monad.Fix
 import Control.Monad.ST
 import Data.Coerce
 import Data.Kind
+import Data.Singletons
 import GHC.IO (IO (..))
 import GHC.ST (ST (..))
 
 type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where
   CapIO RealWorld = IO
 
-type role RootCap nominal
+type role CapabilityData nominal nominal
 
-data RootCap (s :: Type) = MkRootCap
+type CapabilityData :: Type -> Capability -> Type
+data CapabilityData s cap where
+  RootCap :: CapabilityData RealWorld Root
 
-forgeRootIO :: IO (RootCap RealWorld)
-forgeRootIO = pure MkRootCap
+type HasCapability' :: Capability -> Constraint
+type family HasCapability' cap where
+  HasCapability' Root = ()
 
 type HasCapability :: Type -> Capability -> Constraint
 type family HasCapability s cap where
-  HasCapability s Root = ()
+  HasCapability s cap = (HasCapability' cap, s ~ RealWorld, SingI cap)
+
+withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
+withCapability RootCap go = go
+
+capabilityData :: forall s cap. (HasCapability s cap) => CapabilityData s cap
+capabilityData = case sing @cap of
+  SRoot -> RootCap
 
 class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (RootCap s)
+  forgeRootST :: ST s (CapabilityData s Root)
   sudo
     :: forall s'
     ->(m ~ CapIO s, s ~ s')
@@ -46,5 +59,8 @@ class (MonadFix (CapIO s)) => ValidState s where
     -> (HasCapability s Root) => x
 
 instance ValidState RealWorld where
-  forgeRootST = pure MkRootCap
+  forgeRootST = pure RootCap
   sudo _ go = go
+
+forgeRootIO :: IO (CapabilityData RealWorld Root)
+forgeRootIO = pure RootCap
