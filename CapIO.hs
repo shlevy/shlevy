@@ -4,8 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module CapIO
-  ( module CapIO.Internal
-  , SomeException (..)
+  ( module CapIO.Core
   , Cleanup (..)
   , onException
   , mask
@@ -37,28 +36,7 @@ module CapIO
   )
 where
 
-{-
-module CapIO
-  ( CapIO
-  , IOCap (..)
-  , PureCap (..)
-  , purity
-  , runCapIO
-  , onException
-  , finally
-  , with
-  , Allocate (..)
-  , Restore (..)
-  , Allocated (..)
-  , Clock(..)
-  , SystemClock(..)
-  , systemClock
-  , UTCTime(..)
-  )
-where
--}
-
-import CapIO.Internal (CapIO, CapST, IOCap, PrimCap, PureCap, liftIO, liftPrim, primIO, primPure, runCapIO, runCapST, withRunInIO, withRunInPrim)
+import CapIO.Core (CapIO, ValidState, HasCap, WithCap, IOCap, runCapIO, unliftIO, liftIO, PrimCap, unliftPrim, liftPrim, primIO)
 import Control.Exception hiding (mask, onException)
 import Control.Exception qualified as CE
 import Control.Monad

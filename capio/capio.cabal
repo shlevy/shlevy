@@ -22,13 +22,54 @@ category:        Observability
 build-type:      Simple
 tested-with:     GHC == { 9.10.2 }
 
+library prelim
+  exposed-modules: CapIO.Prelim
+  hs-source-dirs: prelim
+  build-depends: base
+  default-language: GHC2024
+
+library core-signature
+  signatures: CapIO.Core
+  hs-source-dirs: core-signature
+  build-depends: base, capio:prelim
+  default-language: GHC2024
+
 library
-  exposed-modules: CapIO, CapIO.Internal
+  exposed-modules: CapIO
+  hs-source-dirs: library
+  build-depends: base, capio:prelim, capio:core-signature
+  default-language: GHC2024
 
-  build-depends:
-    , base
-    , abstractly-keyed-implicits
-    , time
-    , primitive
+library core-synonym
+  exposed-modules: CapIO.Core
+  hs-source-dirs: core-synonym
+  build-depends: base
+  default-language: GHC2024
 
+library core-typesafe
+  exposed-modules: CapIO.Core
+  hs-source-dirs: core-typesafe
+  build-depends: base, capio:prelim
+  default-language: GHC2024
+
+library test
+  exposed-modules: CapIO.Test
+  hs-source-dirs: testlib
+  default-language: GHC2024
+  build-depends: base, capio
+
+test-suite capio-synonym
+  type:             exitcode-stdio-1.0
+  main-is:          Test.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends: base, capio:test, capio:core-synonym
+  hs-source-dirs: test
+  default-language: GHC2024
+
+test-suite capio-typesafe
+  type:             exitcode-stdio-1.0
+  main-is:          Test.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends: base, capio:test, capio:core-typesafe
+  hs-source-dirs: test
   default-language: GHC2024

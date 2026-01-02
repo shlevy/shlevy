@@ -1,0 +1,53 @@
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE UndecidableInstances #-}
+signature CapIO.Core where
+
+import CapIO.Prelim
+import Control.Monad.Fix
+import Data.Kind
+import Control.Monad.ST
+import GHC.Base (IP)
+import GHC.Exts
+
+type AttenuateParam :: Param -> ((Type -> Type) -> Type -> Type) -> Param
+type family AttenuateParam param wrapper where ..
+
+type AttenuateParams :: List Param -> ((Type -> Type) -> Type -> Type) -> List Param
+type family AttenuateParams params wrapper where
+  AttenuateParams '[] _ = '[]
+  AttenuateParams (hd : tl) wrapper = AttenuateParam hd wrapper : AttenuateParams tl wrapper
+
+class Attenuatable (params :: List Param) where
+  attenuate
+    :: forall params' wrapper s
+    -> (params' ~ params, WithParams params s, forall origF. Coercible (origF s) (wrapper origF s))
+    => (WithParams (AttenuateParams params wrapper) s => x)
+    -> x
+  unattenuate
+    :: forall params' wrapper s
+    -> (params' ~ params, WithParams (AttenuateParams params wrapper) s, forall origF. Coercible (wrapper origF s) (origF s))
+    => (WithParams params s => x)
+    -> x
+instance Attenuatable '[]
+instance Attenuatable tl => Attenuatable (MkParam origKey origF : tl)
+
+type family Drop (t :: Type -> Type) = (dt :: Type -> Type) | dt -> t where ..
+dropCap
+  :: forall key s
+  -> IP key (t s)
+  => (IP key (Drop t s) => x)
+  -> x
+
+data AmbientCapParams :: List Param
+instance Attenuatable AmbientCapParams
+withAmbientCapParams :: forall s -> (WithParams (AmbientCapParams) s => x) -> x
+
+type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where ..
+
+class ValidState' (s :: Type)
+class (MonadFix (CapIO s), ValidState' s) => ValidState s
+instance ValidState RealWorld
+
+withCoercibleST :: forall s -> (ValidState s, m ~ CapIO s) => ((forall a. Coercible (m a) (ST s a), forall a. (s ~ RealWorld) => Coercible (m a) (IO a)) => x) -> x

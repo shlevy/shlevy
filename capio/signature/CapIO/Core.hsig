@@ -1,0 +1,36 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+signature CapIO.Core where
+
+import Control.Monad.Primitive
+
+import Data.Kind
+import CapIO.HasCap
+
+type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where ..
+
+class ValidState' (s :: Type)
+type ValidState (s :: Type) = (ValidState' s, MonadFix (CapIO s))
+type HasCap (tag :: k) (s :: Type) = (ValidState s, HasCap' tag s)
+type WithCap (tag :: k) s t = (HasCap tag s => t)
+
+data IOCap :: Type -> Type
+
+instance Cap IOCap
+
+runCapIO :: (forall s. WithCap IOCap s (CapIO s a)) -> IO a
+
+unliftIO :: HasCap IOCap s => ((forall a. CapIO s a -> IO a) -> IO b) -> CapIO s b
+
+liftIO :: HasCap IOCap s => IO a -> CapIO s a
+
+data PrimCap :: Type -> Type
+
+instance Cap PrimCap
+
+unliftPrim :: HasCap PrimCap s => (forall m. (PrimBase m, PrimState m ~ s) => (forall a. CapIO s a -> m a) -> m b) -> CapIO s b
+
+liftPrim :: HasCap PrimCap s => (forall m. (PrimBase m, PrimState m ~ s) => m a) -> CapIO s a
+
+primIO :: HasCap IOCap s => WithCap PrimCap s x -> x

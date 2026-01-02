@@ -1,0 +1,12 @@
+{-# LANGUAGE TypeFamilyDependencies #-}
+signature CapIO.Types where
+
+import Data.Kind
+
+type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where ..
+
+type family ValidState (s :: Type) = (c :: Constraint) where ..
+
+data IOCap :: Type
+
+data PrimCap :: Type -> Type

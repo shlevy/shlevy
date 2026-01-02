@@ -27,8 +27,9 @@ test-show-details: streaming
 package abstractly-keyed-implicits
   coverage: True
 
+-- Breaks backpack TODO open ticket
 package capio
-  coverage: True
+  coverage: False
 
 package e11y
   coverage: True

@@ -27,7 +27,7 @@ library
 
   build-depends:
     , base
-    , capio ^>= { 0.1 }
+--    , capio ^>= { 0.1 }
     , abstractly-keyed-implicits ^>= { 0.1 }
     , time
     , constraints
@@ -50,7 +50,8 @@ test-suite e11y
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
     , base
-    , capio
+--    , capio
+--    , capio:typesafe
     , e11y
     , hspec
     , hspec-hedgehog
