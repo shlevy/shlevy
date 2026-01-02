@@ -1,3 +1,5 @@
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
 module CapIO.Core
@@ -5,14 +7,19 @@ module CapIO.Core
   , CapIO
   , RootCap
   , forgeRootIO
-  , ValidState
-  , forgeRootST
+  , HasCapability
+  , ValidState (..)
   )
 where
 
+import CapIO.Prelim
 import Control.Monad.Fix
 import Control.Monad.ST
+import Data.Coerce
 import Data.Kind
+import GHC.Base (IP)
+import GHC.IO (IO (..))
+import GHC.ST (ST (..))
 
 newtype CapIO' s a = MkCapIO (ST s a) deriving newtype (Functor, Applicative, Monad, MonadFix)
 
@@ -26,8 +33,22 @@ data RootCap (s :: Type) = MkRootCap
 forgeRootIO :: IO (RootCap RealWorld)
 forgeRootIO = pure MkRootCap
 
+type HasCapability :: Type -> Capability -> Constraint
+type family HasCapability s cap where
+  HasCapability s Root = IP (NewSym RootCap) (RootCap s)
+
 class (MonadFix (CapIO s)) => ValidState s where
   forgeRootST :: ST s (RootCap s)
+  sudo
+    :: forall s'
+    ->(m ~ CapIO s, s ~ s')
+    => ( ( forall a b. (Coercible a b) => Coercible (m a) (ST s b)
+         , forall a b. (s ~ RealWorld, Coercible a b) => Coercible (m a) (IO b)
+         )
+         => x
+       )
+    -> (HasCapability s Root) => x
 
 instance ValidState s where
   forgeRootST = pure MkRootCap
+  sudo _ go = go

@@ -1,12 +1,17 @@
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 
 signature CapIO.Core where
 
+import CapIO.Prelim
 import Control.Monad.Fix
 import Control.Monad.ST
+import Data.Coerce
 import Data.Kind
 
-type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where ..
+type CapIO :: Type -> (Type -> Type)
+type family CapIO s = m | m -> s where ..
 
 type role RootCap nominal
 
@@ -14,7 +19,19 @@ data RootCap (s :: Type) :: Type
 
 forgeRootIO :: IO (RootCap RealWorld)
 
+type HasCapability :: Type -> Capability -> Constraint
+type family HasCapability s cap where ..
+
 class (MonadFix (CapIO s)) => ValidState s where
   forgeRootST :: ST s (RootCap s)
+  sudo
+    :: forall s'
+    -> (m ~ CapIO s, s ~ s')
+    => ( ( forall a b. (Coercible a b) => Coercible (m a) (ST s b)
+         , forall a b. (s ~ RealWorld, Coercible a b) => Coercible (m a) (IO b)
+         )
+         => x
+       )
+    -> (HasCapability s Root) => x
 
 instance ValidState RealWorld

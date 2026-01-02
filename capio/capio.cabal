@@ -12,32 +12,41 @@ common base
   build-depends: base
   default-language: GHC2024
 
+library prelim
+  import: base
+  hs-source-dirs: prelim
+  exposed-modules: CapIO.Prelim
+
 library
   import: base
   hs-source-dirs: lib
   exposed-modules: CapIO
   signatures: CapIO.Core
+  build-depends: capio:prelim
+  reexported-modules: CapIO.Prelim
 
 library io
   import: base
   hs-source-dirs: io
   exposed-modules: CapIO.Core
+  build-depends: capio:prelim
   visibility: public
 
 library typesafe
   import: base
   hs-source-dirs: typesafe
   exposed-modules: CapIO.Core
+  build-depends: capio:prelim
   visibility: public
 
 library capio-io
   import: base
-  reexported-modules: CapIO, CapIO.Core
+  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
   build-depends: capio, capio:io
   visibility: public
 
 library capio-typesafe
   import: base
-  reexported-modules: CapIO, CapIO.Core
+  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
   build-depends: capio, capio:typesafe
   visibility: public
