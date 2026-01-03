@@ -5,6 +5,9 @@
 module CapIO.Core
   ( CapIO
   , CapabilityData
+  , RestoreCapabilityData
+  , AuthorityKey
+  , AuthorityData
   , HasCapability
   , withCapability
   , capabilityData
@@ -36,19 +39,23 @@ type CapabilityData :: Type -> Capability -> Type
 data CapabilityData s cap where
   MkCapabilityData :: authority -> CapabilityData s (MkCapability authority)
 
-type CapKey :: Capability -> Symbol
-type family CapKey cap where
-  CapKey (MkCapability authority) = NewSym authority
+class RestoreCapabilityData (s :: Type) (cap :: Capability)
 
-type HasCapability :: Type -> Capability -> Constraint
-type family HasCapability s cap where
-  HasCapability s cap = IP (CapKey cap) (CapabilityData s cap)
+instance RestoreCapabilityData (s :: Type) (cap :: Capability)
 
-withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-withCapability cap@(MkCapabilityData _) = bindImplicit cap
+type family AuthorityKey (cap :: Capability) :: Symbol where
+  AuthorityKey (MkCapability authority) = NewSym authority
+
+type family AuthorityData (s :: Type) (cap :: Capability) :: Type where
+  AuthorityData s cap = CapabilityData s cap
+
+type HasCapability s cap = (IP (AuthorityKey cap) (AuthorityData s cap), RestoreCapabilityData s cap)
+
+withCapability :: forall s cap x. CapabilityData s cap -> ((HasCapability s cap) => x) -> x
+withCapability cd go = bindImplicit (AuthorityKey cap) cd go {- HLINT ignore "Eta reduce" -}
 
 capabilityData :: forall s cap. (HasCapability s cap) => CapabilityData s cap
-capabilityData = ip @(CapKey cap)
+capabilityData = ip @(AuthorityKey cap)
 
 type RootCap = MkCapability Root
 

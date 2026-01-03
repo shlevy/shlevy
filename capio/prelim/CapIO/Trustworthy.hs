@@ -1,4 +1,5 @@
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE Trustworthy #-}
 
 module CapIO.Trustworthy
@@ -19,5 +20,5 @@ class (forall a b. (Coercible a b) => Coercible (IO a) (ST RealWorld b)) => STRe
 
 instance STRealWorld
 
-bindImplicit :: t -> ((IP k t) => x) -> x
-bindImplicit = withDict
+bindImplicit :: forall k -> t -> ((IP k t) => x) -> x
+bindImplicit _ = withDict

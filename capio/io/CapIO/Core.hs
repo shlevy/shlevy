@@ -5,6 +5,9 @@
 module CapIO.Core
   ( CapIO
   , CapabilityData
+  , RestoreCapabilityData
+  , AuthorityKey
+  , AuthorityData
   , HasCapability
   , withCapability
   , capabilityData
@@ -18,10 +21,12 @@ where
 
 import CapIO.Prelim
 import CapIO.Trustworthy
+import Control.Exception.Context
 import Control.Monad.Fix
 import Control.Monad.ST
 import Data.Coerce
 import Data.Kind
+import GHC.TypeLits
 
 type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where
   CapIO RealWorld = IO
@@ -32,19 +37,19 @@ type CapabilityData :: Type -> Capability -> Type
 data CapabilityData s cap where
   MkCapabilityData :: CapabilityData RealWorld (MkCapability authority)
 
-type HasCapability' :: Capability -> Constraint
-type family HasCapability' cap where
-  HasCapability' (MkCapability authority) = ()
+class (s ~ RealWorld) => RestoreCapabilityData (s :: Type) (cap :: Capability) where
+  capabilityData' :: CapabilityData RealWorld cap
 
-type HasCapability :: Type -> Capability -> Constraint
-type family HasCapability s cap where
-  HasCapability s cap = (HasCapability' cap, s ~ RealWorld, HasCapabilityData cap)
-
-class HasCapabilityData (cap :: Capability) where
-  capabilityData' :: (HasCapability' cap) => CapabilityData RealWorld cap
-
-instance HasCapabilityData (MkCapability authority) where
+instance RestoreCapabilityData RealWorld (MkCapability authority) where
   capabilityData' = MkCapabilityData
+
+type family AuthorityKey (cap :: Capability) :: Symbol where
+  AuthorityKey _ = "exceptionContext"
+
+type family AuthorityData (s :: Type) (cap :: Capability) :: Type where
+  AuthorityData RealWorld _ = ExceptionContext
+
+type HasCapability s cap = (IP (AuthorityKey cap) (AuthorityData s cap), RestoreCapabilityData s cap)
 
 withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
 withCapability MkCapabilityData go = go
