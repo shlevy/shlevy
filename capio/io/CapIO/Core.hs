@@ -19,16 +19,19 @@ import Control.Monad.Fix
 import Control.Monad.ST
 import Data.Coerce
 import Data.Kind
-import Data.Singletons
 
 type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where
   CapIO RealWorld = IO
+
+type CapabilityData' :: Capability -> Type
+type family CapabilityData' cap where
+  CapabilityData' Root = ()
 
 type role CapabilityData nominal nominal
 
 type CapabilityData :: Type -> Capability -> Type
 data CapabilityData s cap where
-  RootCap :: CapabilityData RealWorld Root
+  MkCapabilityData :: (WithCapability cap) => CapabilityData' cap -> CapabilityData RealWorld cap
 
 type HasCapability' :: Capability -> Constraint
 type family HasCapability' cap where
@@ -36,14 +39,25 @@ type family HasCapability' cap where
 
 type HasCapability :: Type -> Capability -> Constraint
 type family HasCapability s cap where
-  HasCapability s cap = (HasCapability' cap, s ~ RealWorld, SingI cap)
+  HasCapability s cap = (HasCapability' cap, s ~ RealWorld, HasCapabilityData cap)
+
+class HasCapabilityData (cap :: Capability) where
+  capabilityData' :: (HasCapability' cap) => CapabilityData RealWorld cap
+
+instance HasCapabilityData Root where
+  capabilityData' = MkCapabilityData ()
+
+class WithCapability (cap :: Capability) where
+  withCapability' :: CapabilityData' cap -> ((HasCapability RealWorld cap) => x) -> x
+
+instance WithCapability Root where
+  withCapability' _ go = go
 
 withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-withCapability RootCap go = go
+withCapability (MkCapabilityData cd) = withCapability' cd
 
-capabilityData :: forall s cap. (HasCapability s cap) => CapabilityData s cap
-capabilityData = case sing @cap of
-  SRoot -> RootCap
+capabilityData :: (HasCapability s cap) => CapabilityData s cap
+capabilityData = capabilityData'
 
 class (MonadFix (CapIO s)) => ValidState s where
   forgeRootST :: ST s (CapabilityData s Root)
@@ -58,8 +72,8 @@ class (MonadFix (CapIO s)) => ValidState s where
     -> (HasCapability s Root) => x
 
 instance (STRealWorld) => ValidState RealWorld where
-  forgeRootST = pure RootCap
+  forgeRootST = pure $ MkCapabilityData ()
   sudo _ go = go
 
 forgeRootIO :: IO (CapabilityData RealWorld Root)
-forgeRootIO = pure RootCap
+forgeRootIO = pure $ MkCapabilityData ()

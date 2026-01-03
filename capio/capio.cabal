@@ -16,7 +16,6 @@ library prelim
   import: base
   hs-source-dirs: prelim
   exposed-modules: CapIO.Prelim, CapIO.Trustworthy
-  build-depends: singletons
 
 library
   import: base
@@ -30,7 +29,7 @@ library io
   import: base
   hs-source-dirs: io
   exposed-modules: CapIO.Core
-  build-depends: capio:prelim, singletons
+  build-depends: capio:prelim
   visibility: public
 
 library typesafe
