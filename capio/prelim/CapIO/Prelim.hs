@@ -2,9 +2,10 @@
 
 module CapIO.Prelim where
 
+import Data.Kind
 import GHC.TypeLits
 
-data Capability = Root
+newtype Capability = MkCapability Type
 
 type NewSym' :: forall k k'. k -> k'
 data family NewSym' (t :: k) :: k'

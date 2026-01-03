@@ -3,14 +3,17 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 
 module CapIO.Core
-  ( CapIO'
-  , CapIO
+  ( CapIO
   , CapabilityData
-  , forgeRootIO
   , HasCapability
   , withCapability
   , capabilityData
+  , RootCap
+  , HasRootCap
+  , Root
   , ValidState (..)
+  , forgeRootIO
+  , CapIO'
   )
 where
 
@@ -31,26 +34,30 @@ type role CapabilityData nominal nominal
 
 type CapabilityData :: Type -> Capability -> Type
 data CapabilityData s cap where
-  RootCap :: CapabilityData s Root
-
-type RootKey = NewSym CapabilityData
+  MkCapabilityData :: authority -> CapabilityData s (MkCapability authority)
 
 type CapKey :: Capability -> Symbol
 type family CapKey cap where
-  CapKey Root = RootKey
+  CapKey (MkCapability authority) = NewSym authority
 
 type HasCapability :: Type -> Capability -> Constraint
 type family HasCapability s cap where
   HasCapability s cap = IP (CapKey cap) (CapabilityData s cap)
 
 withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-withCapability RootCap = bindImplicit RootCap
+withCapability cap@(MkCapabilityData _) = bindImplicit cap
 
 capabilityData :: forall s cap. (HasCapability s cap) => CapabilityData s cap
 capabilityData = ip @(CapKey cap)
 
+type RootCap = MkCapability Root
+
+type HasRootCap s = HasCapability s RootCap
+
+data Root = MkRoot
+
 class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (CapabilityData s Root)
+  forgeRootST :: ST s (CapabilityData s RootCap)
   sudo
     :: forall s'
     ->(m ~ CapIO s, s ~ s')
@@ -59,11 +66,13 @@ class (MonadFix (CapIO s)) => ValidState s where
          )
          => x
        )
-    -> (HasCapability s Root) => x
+    -> (HasRootCap s) => x
+  createCapabilityData :: authority -> CapabilityData s (MkCapability authority)
 
 instance (STRealWorld) => ValidState s where
-  forgeRootST = pure RootCap
+  forgeRootST = pure $ MkCapabilityData MkRoot
   sudo _ go = go
+  createCapabilityData = MkCapabilityData
 
-forgeRootIO :: IO (CapabilityData RealWorld Root)
-forgeRootIO = pure RootCap
+forgeRootIO :: IO (CapabilityData RealWorld RootCap)
+forgeRootIO = pure $ MkCapabilityData MkRoot

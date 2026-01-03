@@ -25,8 +25,14 @@ withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
 
 capabilityData :: (HasCapability s cap) => CapabilityData s cap
 
+type RootCap = MkCapability Root
+
+type HasRootCap s = HasCapability s RootCap
+
+data Root
+
 class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (CapabilityData s Root)
+  forgeRootST :: ST s (CapabilityData s RootCap)
   sudo
     :: forall s'
     -> (m ~ CapIO s, s ~ s')
@@ -35,8 +41,9 @@ class (MonadFix (CapIO s)) => ValidState s where
          )
          => x
        )
-    -> (HasCapability s Root) => x
+    -> (HasRootCap s) => x
+  createCapabilityData :: authority -> CapabilityData s (MkCapability authority)
 
 instance ValidState RealWorld
 
-forgeRootIO :: IO (CapabilityData RealWorld Root)
+forgeRootIO :: IO (CapabilityData RealWorld RootCap)

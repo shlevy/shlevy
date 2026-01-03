@@ -5,11 +5,14 @@
 module CapIO.Core
   ( CapIO
   , CapabilityData
-  , forgeRootIO
   , HasCapability
   , withCapability
   , capabilityData
+  , RootCap
+  , HasRootCap
+  , Root
   , ValidState (..)
+  , forgeRootIO
   )
 where
 
@@ -23,19 +26,15 @@ import Data.Kind
 type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where
   CapIO RealWorld = IO
 
-type CapabilityData' :: Capability -> Type
-type family CapabilityData' cap where
-  CapabilityData' Root = ()
-
 type role CapabilityData nominal nominal
 
 type CapabilityData :: Type -> Capability -> Type
 data CapabilityData s cap where
-  MkCapabilityData :: (WithCapability cap) => CapabilityData' cap -> CapabilityData RealWorld cap
+  MkCapabilityData :: CapabilityData RealWorld (MkCapability authority)
 
 type HasCapability' :: Capability -> Constraint
 type family HasCapability' cap where
-  HasCapability' Root = ()
+  HasCapability' (MkCapability authority) = ()
 
 type HasCapability :: Type -> Capability -> Constraint
 type family HasCapability s cap where
@@ -44,23 +43,23 @@ type family HasCapability s cap where
 class HasCapabilityData (cap :: Capability) where
   capabilityData' :: (HasCapability' cap) => CapabilityData RealWorld cap
 
-instance HasCapabilityData Root where
-  capabilityData' = MkCapabilityData ()
-
-class WithCapability (cap :: Capability) where
-  withCapability' :: CapabilityData' cap -> ((HasCapability RealWorld cap) => x) -> x
-
-instance WithCapability Root where
-  withCapability' _ go = go
+instance HasCapabilityData (MkCapability authority) where
+  capabilityData' = MkCapabilityData
 
 withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-withCapability (MkCapabilityData cd) = withCapability' cd
+withCapability MkCapabilityData go = go
 
 capabilityData :: (HasCapability s cap) => CapabilityData s cap
 capabilityData = capabilityData'
 
+type RootCap = MkCapability Root
+
+type HasRootCap s = HasCapability s RootCap
+
+data Root
+
 class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (CapabilityData s Root)
+  forgeRootST :: ST s (CapabilityData s RootCap)
   sudo
     :: forall s'
     ->(m ~ CapIO s, s ~ s')
@@ -69,11 +68,13 @@ class (MonadFix (CapIO s)) => ValidState s where
          )
          => x
        )
-    -> (HasCapability s Root) => x
+    -> (HasRootCap s) => x
+  createCapabilityData :: authority -> CapabilityData s (MkCapability authority)
 
 instance (STRealWorld) => ValidState RealWorld where
-  forgeRootST = pure $ MkCapabilityData ()
+  forgeRootST = pure MkCapabilityData
   sudo _ go = go
+  createCapabilityData _ = MkCapabilityData
 
-forgeRootIO :: IO (CapabilityData RealWorld Root)
-forgeRootIO = pure $ MkCapabilityData ()
+forgeRootIO :: IO (CapabilityData RealWorld RootCap)
+forgeRootIO = pure MkCapabilityData
