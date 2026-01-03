@@ -15,36 +15,36 @@ common base
 library prelim
   import: base
   hs-source-dirs: prelim
-  exposed-modules: CapIO.Prelim, CapIO.Trustworthy
+  exposed-modules: CapIO.Prelim
 
 library
   import: base
   hs-source-dirs: lib
   exposed-modules: CapIO
   signatures: CapIO.Core
-  build-depends: capio:prelim
-  reexported-modules: CapIO.Prelim, CapIO.Trustworthy
+  build-depends: capio:prelim, capio-trustworthy
+  reexported-modules: CapIO.Prelim
 
 library io
   import: base
   hs-source-dirs: io
   exposed-modules: CapIO.Core
-  build-depends: capio:prelim
+  build-depends: capio:prelim, capio-trustworthy
   visibility: public
 
 library typesafe
   import: base
   hs-source-dirs: typesafe
   exposed-modules: CapIO.Core
-  build-depends: capio:prelim
+  build-depends: capio:prelim, capio-trustworthy
   visibility: public
 
 library capio-io
-  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim, CapIO.Trustworthy
+  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
   build-depends: capio, capio:io
   visibility: public
 
 library capio-typesafe
-  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim, CapIO.Trustworthy
+  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
   build-depends: capio, capio:typesafe
   visibility: public

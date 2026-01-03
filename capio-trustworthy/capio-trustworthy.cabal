@@ -1,0 +1,14 @@
+cabal-version:   3.4
+name:            capio-trustworthy
+version:         0.1.0.0
+license:         Apache-2.0
+author:          Shea Levy
+maintainer:      shea@shealevy.com
+copyright:       Copyright 2025 Shea Levy
+build-type:      Simple
+tested-with:     GHC == { 9.10.2 }
+
+library
+  build-depends: base
+  default-language: GHC2024
+  exposed-modules: CapIO.Trustworthy
