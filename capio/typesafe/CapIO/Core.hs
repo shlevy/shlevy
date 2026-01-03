@@ -15,13 +15,11 @@ module CapIO.Core
 where
 
 import CapIO.Prelim
+import CapIO.Trustworthy
 import Control.Monad.Fix
 import Control.Monad.ST
 import Data.Coerce
 import Data.Kind
-import GHC.Base (IP, ip, withDict)
-import GHC.IO (IO (..))
-import GHC.ST (ST (..))
 import GHC.TypeLits
 
 newtype CapIO' s a = MkCapIO (ST s a) deriving newtype (Functor, Applicative, Monad, MonadFix)
@@ -46,7 +44,7 @@ type family HasCapability s cap where
   HasCapability s cap = IP (CapKey cap) (CapabilityData s cap)
 
 withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-withCapability RootCap = withDict RootCap
+withCapability RootCap = bindImplicit RootCap
 
 capabilityData :: forall s cap. (HasCapability s cap) => CapabilityData s cap
 capabilityData = ip @(CapKey cap)
@@ -63,7 +61,7 @@ class (MonadFix (CapIO s)) => ValidState s where
        )
     -> (HasCapability s Root) => x
 
-instance ValidState s where
+instance (STRealWorld) => ValidState s where
   forgeRootST = pure RootCap
   sudo _ go = go
 

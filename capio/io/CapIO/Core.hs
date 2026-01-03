@@ -14,13 +14,12 @@ module CapIO.Core
 where
 
 import CapIO.Prelim
+import CapIO.Trustworthy
 import Control.Monad.Fix
 import Control.Monad.ST
 import Data.Coerce
 import Data.Kind
 import Data.Singletons
-import GHC.IO (IO (..))
-import GHC.ST (ST (..))
 
 type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where
   CapIO RealWorld = IO
@@ -58,7 +57,7 @@ class (MonadFix (CapIO s)) => ValidState s where
        )
     -> (HasCapability s Root) => x
 
-instance ValidState RealWorld where
+instance (STRealWorld) => ValidState RealWorld where
   forgeRootST = pure RootCap
   sudo _ go = go
 
