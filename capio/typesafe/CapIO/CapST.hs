@@ -8,6 +8,8 @@ module CapIO.CapST
   , HasSTCap
   , forgeSTCap
   , sudoST
+  , liftST
+  , unliftST
   , CapIO
   , IOCap
   , HasIOCap
@@ -56,6 +58,12 @@ forgeSTCap @s = pure $ forge (STCap s)
 
 sudoST :: forall s -> (HasSTCap s) => ((forall a. Coercible (ST s a) (CapST s a)) => x) -> x
 sudoST _ go = go
+
+liftST :: (HasSTCap s) => ST s a -> CapST s a
+liftST @s go = sudoST s (coerce go)
+
+unliftST :: (HasSTCap s) => ((forall a. CapST s a -> ST s a) -> ST s b) -> CapST s b
+unliftST @s useRunInST = sudoST s (coerce (useRunInST coerce))
 
 type role PureCap nominal nominal
 
