@@ -15,36 +15,96 @@ common base
 library prelim
   import: base
   hs-source-dirs: prelim
-  exposed-modules: CapIO.Prelim
+  exposed-modules:
+    CapIO.Capability.Types,
+    Data.VarFun
+
+library capability
+  import: base
+  hs-source-dirs: capability
+  reexported-modules:
+    CapIO.Capability.Types,
+    Data.VarFun
+  exposed-modules: CapIO.Capability
+  signatures: CapIO.Capability.Core
+  build-depends: capio:prelim, capio-trustworthy
+  visibility: public
+
+library capability-core-typesafe
+  import: base
+  hs-source-dirs: capability-core-typesafe
+  exposed-modules: CapIO.Capability.Core
+  build-depends: capio:prelim, capio-trustworthy, transformers
+
+library capability-core-data-only
+  import: base
+  hs-source-dirs: capability-core-data-only
+  exposed-modules: CapIO.Capability.Core
+  build-depends: capio:prelim, capio-trustworthy, tagged
+
+library capability-typesafe
+  reexported-modules:
+    CapIO.Capability,
+    CapIO.Capability.Core,
+    CapIO.Capability.Types,
+    Data.VarFun
+  build-depends: capio:capability, capio:capability-core-typesafe
+  visibility: public
+
+library capability-data-only
+  reexported-modules:
+    CapIO.Capability,
+    CapIO.Capability.Core,
+    CapIO.Capability.Types,
+    Data.VarFun
+  build-depends: capio:capability, capio:capability-core-data-only
+  visibility: public
 
 library
   import: base
   hs-source-dirs: lib
   exposed-modules: CapIO
-  signatures: CapIO.Core
-  build-depends: capio:prelim, capio-trustworthy
-  reexported-modules: CapIO.Prelim
+  reexported-modules:
+    CapIO.Capability,
+    CapIO.Capability.Types,
+    Data.VarFun
+  signatures: CapIO.Capability.Core, CapIO.Core
+  build-depends: capio:capability, capio-trustworthy
 
 library io
   import: base
   hs-source-dirs: io
   exposed-modules: CapIO.Core
-  build-depends: capio:prelim, capio-trustworthy
+  signatures: CapIO.Capability.Core
+  build-depends: capio:capability
   visibility: public
 
 library typesafe
   import: base
   hs-source-dirs: typesafe
-  exposed-modules: CapIO.Core
-  build-depends: capio:prelim, capio-trustworthy
+  exposed-modules: CapIO.Core, CapIO.CapST
+  signatures: CapIO.Capability.Core
+  build-depends: capio-trustworthy, capio:capability
   visibility: public
 
 library capio-io
-  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
-  build-depends: capio, capio:io
+  reexported-modules:
+    CapIO,
+    CapIO.Capability,
+    CapIO.Capability.Core,
+    CapIO.Capability.Types,
+    CapIO.Core,
+    Data.VarFun
+  build-depends: capio, capio:io, capio:capability-core-data-only
   visibility: public
 
 library capio-typesafe
-  reexported-modules: CapIO, CapIO.Core, CapIO.Prelim
-  build-depends: capio, capio:typesafe
+  reexported-modules:
+    CapIO,
+    CapIO.Capability,
+    CapIO.Capability.Core,
+    CapIO.Capability.Types,
+    CapIO.Core,
+    Data.VarFun
+  build-depends: capio, capio:typesafe, capio:capability-core-typesafe
   visibility: public

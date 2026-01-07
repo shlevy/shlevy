@@ -1,85 +1,29 @@
 {-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE RequiredTypeArguments #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
 
 module CapIO.Core
   ( CapIO
-  , CapabilityData
-  , RestoreCapabilityData
-  , AuthorityKey
-  , AuthorityData
-  , HasCapability
-  , withCapability
-  , capabilityData
-  , RootCap
-  , HasRootCap
-  , Root
-  , ValidState (..)
-  , forgeRootIO
+  , IOCap
+  , HasIOCap
+  , sudo
+  , forgeIOCap
   )
 where
 
-import CapIO.Prelim
-import CapIO.Trustworthy
-import Control.Exception.Context
-import Control.Monad.Fix
-import Control.Monad.ST
+import CapIO.Capability
 import Data.Coerce
-import Data.Kind
-import GHC.TypeLits
 
-type family CapIO (s :: Type) = (m :: Type -> Type) | m -> s where
-  CapIO RealWorld = IO
+type CapIO = IO
 
-type role CapabilityData nominal nominal
+type role IOCap nominal
 
-type CapabilityData :: Type -> Capability -> Type
-data CapabilityData s cap where
-  MkCapabilityData :: CapabilityData RealWorld (MkCapability authority)
+newtype IOCap a = MkIOCap a
 
-class (s ~ RealWorld) => RestoreCapabilityData (s :: Type) (cap :: Capability) where
-  capabilityData' :: CapabilityData RealWorld cap
+instance Capability IOCap
 
-instance RestoreCapabilityData RealWorld (MkCapability authority) where
-  capabilityData' = MkCapabilityData
+type HasIOCap = HasCapability IOCap
 
-type family AuthorityKey (cap :: Capability) :: Symbol where
-  AuthorityKey _ = "exceptionContext"
+sudo :: (HasIOCap) => ((forall a. Coercible (IO a) (CapIO a)) => x) -> x
+sudo go = go
 
-type family AuthorityData (s :: Type) (cap :: Capability) :: Type where
-  AuthorityData RealWorld _ = ExceptionContext
-
-type HasCapability s cap = (IP (AuthorityKey cap) (AuthorityData s cap), RestoreCapabilityData s cap)
-
-withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-withCapability MkCapabilityData go = go
-
-capabilityData :: (HasCapability s cap) => CapabilityData s cap
-capabilityData = capabilityData'
-
-type RootCap = MkCapability Root
-
-type HasRootCap s = HasCapability s RootCap
-
-data Root
-
-class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (CapabilityData s RootCap)
-  sudo
-    :: forall s'
-    ->(m ~ CapIO s, s ~ s')
-    => ( ( forall a b. (Coercible a b) => Coercible (m a) (ST s b)
-         , forall a b. (s ~ RealWorld, Coercible a b) => Coercible (m a) (IO b)
-         )
-         => x
-       )
-    -> (HasRootCap s) => x
-  createCapabilityData :: authority -> CapabilityData s (MkCapability authority)
-
-instance (STRealWorld) => ValidState RealWorld where
-  forgeRootST = pure MkCapabilityData
-  sudo _ go = go
-  createCapabilityData _ = MkCapabilityData
-
-forgeRootIO :: IO (CapabilityData RealWorld RootCap)
-forgeRootIO = pure MkCapabilityData
+forgeIOCap :: IO (CapabilityHandle IOCap)
+forgeIOCap = pure $ forge IOCap

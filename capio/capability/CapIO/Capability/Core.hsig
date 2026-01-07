@@ -1,0 +1,31 @@
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE TypeFamilies #-}
+
+signature CapIO.Capability.Core where
+
+import CapIO.Capability.Types hiding (CapabilityKey)
+import CapIO.Trustworthy
+import Data.Coerce
+import Data.Kind
+import GHC.TypeLits
+
+data WrapperT :: (Type -> Type) -> (Type -> Type)
+
+class (forall a wrapper. Coercible a (wrapper a) => Coercible a (WrapperT wrapper a)) => ValidWrapperT
+instance ValidWrapperT
+
+type CapabilityKey :: (Type -> Type) -> CapName -> Symbol
+type family CapabilityKey cap name where ..
+
+type family CapabilityTy (cap :: Type -> Type) :: Type where ..
+
+type HasNamedCapability (name :: CapName) cap = (IP (CapabilityKey cap name) (CapabilityTy cap), Capability cap)
+
+withNamedCapability :: forall name -> (Capability cap) => CapabilityHandle WrapperT cap -> ((HasNamedCapability name cap) => x) -> x
+
+namedCapabilityHandle :: forall name -> (HasNamedCapability name cap) => CapabilityHandle WrapperT cap
+
+type family Drop (t :: Type) :: Type where ..
+
+dropKeyed :: forall k -> IP k t => (IP k (Drop t) => x) -> x

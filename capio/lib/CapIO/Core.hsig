@@ -1,56 +1,27 @@
 {-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE RequiredTypeArguments #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
 
 signature CapIO.Core where
 
-import CapIO.Prelim
-import CapIO.Trustworthy
-import Control.Monad.Fix
-import Control.Monad.ST
 import Data.Coerce
 import Data.Kind
-import GHC.TypeLits
+import Control.Monad.Fix
+import CapIO.Capability
+import CapIO.Capability.Types qualified as Types
+import CapIO.Capability.Core
+import CapIO.Trustworthy
 
-type CapIO :: Type -> (Type -> Type)
-type family CapIO s = m | m -> s where ..
+data CapIO :: Type -> Type
 
-type role CapabilityData nominal nominal
+instance MonadFix CapIO
 
-type CapabilityData :: Type -> Capability -> Type
-data CapabilityData s cap
+type role IOCap nominal
+data IOCap :: Type -> Type
 
-class RestoreCapabilityData (s :: Type) (cap :: Capability)
+instance Capability IOCap where
 
-type family AuthorityKey (cap :: Capability) :: Symbol where ..
+-- Inline type synonyms to work around backpack bug
+type HasIOCap = (IP (CapabilityKey IOCap Types.Default) (CapabilityTy IOCap), Capability IOCap)
 
-type family AuthorityData (s :: Type) (cap :: Capability) :: Type where ..
+sudo :: (HasIOCap) => ((forall a. Coercible (IO a) (CapIO a)) => x) -> x
 
-type HasCapability s cap = (IP (AuthorityKey cap) (AuthorityData s cap), RestoreCapabilityData s cap)
-
-withCapability :: CapabilityData s cap -> ((HasCapability s cap) => x) -> x
-
-capabilityData :: (HasCapability s cap) => CapabilityData s cap
-
-type RootCap = MkCapability Root
-
-type HasRootCap s = HasCapability s RootCap
-
-data Root
-
-class (MonadFix (CapIO s)) => ValidState s where
-  forgeRootST :: ST s (CapabilityData s RootCap)
-  sudo
-    :: forall s'
-    -> (m ~ CapIO s, s ~ s')
-    => ( ( forall a b. (Coercible a b) => Coercible (m a) (ST s b)
-         , forall a b. (s ~ RealWorld, Coercible a b) => Coercible (m a) (IO b)
-         )
-         => x
-       )
-    -> (HasRootCap s) => x
-  createCapabilityData :: authority -> CapabilityData s (MkCapability authority)
-
-instance ValidState RealWorld
-
-forgeRootIO :: IO (CapabilityData RealWorld RootCap)
+forgeIOCap :: IO (Types.CapabilityHandle WrapperT IOCap)
