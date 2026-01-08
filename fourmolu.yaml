@@ -12,3 +12,5 @@ let-style: auto
 in-style: right-align
 respectful: false
 fixities: []
+single-constraint-parens: never
+single-deriving-parens: never

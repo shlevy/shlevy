@@ -18,6 +18,7 @@ packages:
   capio
   capio-trustworthy
   e11y
+  sig
   thinning-bug
 
 tests: True
